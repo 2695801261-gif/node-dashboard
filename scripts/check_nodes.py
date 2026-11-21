@@ -7,6 +7,7 @@ import requests
 import subprocess
 import concurrent.futures
 from urllib.parse import quote
+from pathlib import Path
 
 SOURCES = [
     "https://github.com/learnLi/free-nodes/releases/latest/download/list.meta.us.yml",
@@ -20,6 +21,11 @@ TIMEOUT = 8000
 MAX_WORKERS = 8
 FAST_MAX_DELAY = 500
 STABILITY_ROUNDS = 3
+DOWNLOAD_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
+DOWNLOAD_BYTES = 524288
+MIN_DOWNLOAD_KIB_PER_SEC = 64
+DOWNLOAD_TIMEOUT = 18
+DOWNLOAD_WORKERS = 8
 
 def fetch_nodes():
     nodes = []
@@ -78,6 +84,133 @@ def test_node(node):
         pass
 
     return None
+
+
+def test_download(node, index, binary):
+    """Start an isolated Mihomo instance and verify real response-body transfer."""
+    mixed_port = 20000 + index * 2
+    api_port = mixed_port + 1
+    config_path = f"/tmp/mihomo-download-{index}.yaml"
+    name = node["name"]
+
+    config = {
+        "mixed-port": mixed_port,
+        "allow-lan": False,
+        "mode": "rule",
+        "log-level": "error",
+        "external-controller": f"127.0.0.1:{api_port}",
+        "proxies": [node],
+        "proxy-groups": [{
+            "name": "DOWNLOAD-TEST",
+            "type": "select",
+            "proxies": [name],
+        }],
+        "rules": ["MATCH,DOWNLOAD-TEST"],
+    }
+
+    process = None
+    try:
+        with open(config_path, "w", encoding="utf-8") as file:
+            yaml.safe_dump(config, file, allow_unicode=True, sort_keys=False)
+
+        process = subprocess.Popen(
+            [binary, "-f", config_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        api = f"http://127.0.0.1:{api_port}"
+        ready = False
+        for _ in range(12):
+            if process.poll() is not None:
+                return None
+            try:
+                response = requests.get(api + "/version", timeout=1)
+                if response.ok:
+                    ready = True
+                    break
+            except requests.RequestException:
+                time.sleep(0.5)
+
+        if not ready:
+            return None
+
+        proxy_url = f"http://127.0.0.1:{mixed_port}"
+        started = time.monotonic()
+        received = 0
+
+        with requests.get(
+            DOWNLOAD_TEST_URL,
+            proxies={"http": proxy_url, "https": proxy_url},
+            headers={
+                "Accept-Encoding": "identity",
+                "Cache-Control": "no-cache",
+                "User-Agent": "node-dashboard-download-check/1.0",
+            },
+            stream=True,
+            timeout=(8, DOWNLOAD_TIMEOUT),
+        ) as response:
+            if response.status_code != 200:
+                return None
+            expected = response.headers.get("Content-Length")
+            for chunk in response.iter_content(chunk_size=16384):
+                if chunk:
+                    received += len(chunk)
+                    if received > DOWNLOAD_BYTES:
+                        return None
+
+        elapsed = max(time.monotonic() - started, 0.001)
+        if received != DOWNLOAD_BYTES:
+            return None
+
+        speed_kib = round((received / 1024) / elapsed, 1)
+        if speed_kib < MIN_DOWNLOAD_KIB_PER_SEC:
+            return None
+
+        return {
+            "download_kib_per_sec": speed_kib,
+            "download_bytes": received,
+            "download_seconds": round(elapsed, 2),
+        }
+
+    except Exception as error:
+        print("下载验证失败：", name, str(error)[:180])
+        return None
+    finally:
+        if process is not None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+        try:
+            Path(config_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def probe_download_endpoint():
+    """Confirm the independent download test endpoint itself is reachable."""
+    try:
+        received = 0
+        with requests.get(
+            DOWNLOAD_TEST_URL,
+            headers={"Accept-Encoding": "identity", "Cache-Control": "no-cache"},
+            stream=True,
+            timeout=(8, DOWNLOAD_TIMEOUT),
+        ) as response:
+            if response.status_code != 200:
+                return False
+            for chunk in response.iter_content(chunk_size=16384):
+                if chunk:
+                    received += len(chunk)
+                    if received > DOWNLOAD_BYTES:
+                        return False
+        return received == DOWNLOAD_BYTES
+    except requests.RequestException as error:
+        print("下载测试端点预检失败：", str(error)[:180])
+        return False
 
 
 def build_clash_config(proxy_nodes):
@@ -170,6 +303,33 @@ def main():
         ]
         fast_stable = []
 
+        download_endpoint_ok = probe_download_endpoint()
+        print("下载测试端点预检：", "通过" if download_endpoint_ok else "失败")
+        download_passed = []
+
+        if download_endpoint_ok:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as pool:
+                futures = {
+                    pool.submit(test_download, item["node"], index, binary): item
+                    for index, item in enumerate(fast_candidates)
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    item = futures[future]
+                    result = future.result()
+                    if result:
+                        download_passed.append({
+                            **item,
+                            **result,
+                        })
+                        print(
+                            "下载验证通过：",
+                            item["node"]["name"],
+                            result["download_kib_per_sec"],
+                            "KiB/s",
+                        )
+        else:
+            print("跳过高速节点下载验证：测试端点预检未通过；高速分类本轮不发布未验证节点。")
+
         def confirm_fast_stable(item):
             samples = [item["delay"]]
             for _ in range(STABILITY_ROUNDS - 1):
@@ -184,10 +344,16 @@ def main():
                 "node": item["node"],
                 "delay": round(sum(samples) / len(samples)),
                 "samples": samples,
+                "download_kib_per_sec": item["download_kib_per_sec"],
+                "download_bytes": item["download_bytes"],
+                "download_seconds": item["download_seconds"],
             }
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = [pool.submit(confirm_fast_stable, item) for item in fast_candidates]
+            futures = [
+                pool.submit(confirm_fast_stable, item)
+                for item in download_passed
+            ]
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()
                 if result:
@@ -206,6 +372,9 @@ def main():
             "criteria": {
                 "max_delay_ms_per_probe": FAST_MAX_DELAY,
                 "successful_probes_required": STABILITY_ROUNDS,
+                "download_test_url": DOWNLOAD_TEST_URL,
+                "download_bytes_required": DOWNLOAD_BYTES,
+                "minimum_download_kib_per_sec": MIN_DOWNLOAD_KIB_PER_SEC,
             },
             "working_nodes": len(fast_stable),
             "nodes": [
@@ -214,6 +383,9 @@ def main():
                     "type": item["node"].get("type", ""),
                     "delay": item["delay"],
                     "samples": item["samples"],
+                    "download_kib_per_sec": item["download_kib_per_sec"],
+                    "download_bytes": item["download_bytes"],
+                    "download_seconds": item["download_seconds"],
                 }
                 for item in fast_stable
             ],
@@ -222,7 +394,11 @@ def main():
             json.dump(fast_summary, file, ensure_ascii=False, indent=2)
 
         print("高速稳定候选：", len(fast_candidates))
-        print("高速稳定节点（连续三次成功且每次不超过 500 ms）：", len(fast_stable))
+        print("通过完整下载验证：", len(download_passed))
+        print(
+            "高速稳定节点（3 次延迟测试 + 完整下载 512 KiB + 下载速度至少 64 KiB/s）：",
+            len(fast_stable),
+        )
 
         output = build_clash_config([item["node"] for item in passed])
 
