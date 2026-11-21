@@ -1,0 +1,87 @@
+name: Check Nodes and Deploy
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: node-check-pages
+  cancel-in-progress: true
+
+jobs:
+  check-and-deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download official Mihomo
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          url = "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest"
+          request = urllib.request.Request(
+              url,
+              headers={"Accept": "application/vnd.github+json"}
+          )
+
+          with urllib.request.urlopen(request, timeout=30) as response:
+              release = json.load(response)
+
+          assets = [
+              item for item in release["assets"]
+              if item["name"].startswith(
+                  "mihomo-linux-amd64-compatible-"
+              ) and item["name"].endswith(".gz")
+          ]
+
+          if not assets:
+              raise RuntimeError("没有找到官方 Linux AMD64 兼容版本")
+
+          download_url = assets[0]["browser_download_url"]
+          print("下载：", assets[0]["name"])
+
+          urllib.request.urlretrieve(download_url, "/tmp/mihomo.gz")
+          PY
+
+          gzip -dc /tmp/mihomo.gz > mihomo
+          chmod +x mihomo
+          echo "MIHOMO_BIN=$GITHUB_WORKSPACE/mihomo" >> "$GITHUB_ENV"
+
+      - name: Run connectivity checks
+        run: python scripts/check_nodes.py
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v4
