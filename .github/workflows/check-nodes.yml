@@ -2,6 +2,13 @@ name: Check Nodes and Deploy
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "index.html"
+      - "scripts/check_nodes.py"
+      - "requirements.txt"
+      - ".github/workflows/check-nodes.yml"
   schedule:
     - cron: "0 */6 * * *"
 
