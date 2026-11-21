@@ -80,6 +80,33 @@ def test_node(node):
     return None
 
 
+def build_clash_config(proxy_nodes):
+    names = [node["name"] for node in proxy_nodes]
+    return {
+        "mixed-port": 7890,
+        "allow-lan": False,
+        "mode": "rule",
+        "log-level": "info",
+        "proxies": proxy_nodes,
+        "proxy-groups": [
+            {
+                "name": "自动选择",
+                "type": "url-test",
+                "proxies": names,
+                "url": TEST_URL,
+                "interval": 300,
+                "tolerance": 50,
+            },
+            {
+                "name": "手动选择",
+                "type": "select",
+                "proxies": ["自动选择", "DIRECT"] + names,
+            },
+        ],
+        "rules": ["MATCH,手动选择"],
+    }
+
+
 def main():
     os.makedirs("data", exist_ok=True)
 
@@ -167,9 +194,10 @@ def main():
                     fast_stable.append(result)
 
         fast_stable.sort(key=lambda item: item["delay"])
+        fast_nodes = [item["node"] for item in fast_stable]
         with open("data/fast-stable-nodes.yaml", "w", encoding="utf-8") as file:
             yaml.safe_dump(
-                {"proxies": [item["node"] for item in fast_stable]},
+                build_clash_config(fast_nodes),
                 file, allow_unicode=True, sort_keys=False
             )
 
@@ -196,9 +224,7 @@ def main():
         print("高速稳定候选：", len(fast_candidates))
         print("高速稳定节点（连续三次成功且每次不超过 500 ms）：", len(fast_stable))
 
-        output = {
-            "proxies": [item["node"] for item in passed],
-        }
+        output = build_clash_config([item["node"] for item in passed])
 
         with open(
             "data/checked-nodes.yaml",
