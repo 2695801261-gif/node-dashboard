@@ -27,6 +27,12 @@ DOWNLOAD_TIMEOUT = 18
 DOWNLOAD_WORKERS = 8
 DOWNLOAD_TARGETS = [
     {
+        "name": "Google gstatic Firebase bundle",
+        "url": "https://www.gstatic.com/firebasejs/13.4.0/firebase-compat.js",
+        "expected_status": 206,
+        "headers": {"Range": "bytes=0-524287"},
+    },
+    {
         "name": "Google Maven",
         "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-basement/18.5.0/play-services-basement-18.5.0-javadoc.jar",
         "expected_status": 206,
