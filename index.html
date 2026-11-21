@@ -51,6 +51,23 @@ footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
     <div class="desc">检测由 GitHub 云端执行，延迟是云端到测试地址的结果，不代表你当前网络的实际延迟或可用性。</div>
   </section>
 
+  <h2 class="section-title">⚡ 高速稳定节点 · 独立精选</h2>
+  <section class="card" id="fast-panel">
+    <div class="card-head"><div><h3>高速稳定节点</h3><div class="meta">独立筛选，不受上方普通可用节点列表影响</div></div><span class="pill">速度优先</span></div>
+    <div class="stats">
+      <div class="stat"><strong id="fast-count">—</strong><span>高速稳定节点</span></div>
+      <div class="stat"><strong>≤ 500 ms</strong><span>每轮测速上限</span></div>
+    </div>
+    <div class="meta" id="fast-time">正在读取高速稳定检测结果…</div>
+    <div class="desc">入选条件：同一轮检测中连续 3 次连接测试全部成功，且每次云端延迟均不超过 500 ms。按三次平均延迟排序。国家、地区及其他属性不参与筛选。</div>
+    <div class="node-list" id="fast-node-list"></div>
+    <div class="actions" style="margin-top:13px">
+      <a class="btn primary" href="./data/fast-stable-nodes.yaml" download>下载高速稳定节点 YAML</a>
+      <a class="btn" href="./data/fast-stable-nodes.json" target="_blank" rel="noopener">查看复测数据</a>
+    </div>
+    <div class="meta" id="fast-caption">最多展示前 50 条</div>
+  </section>
+
   <h2 class="section-title">🇺🇸 美国优先</h2>
   <section class="card">
     <div class="card-head"><div><h3>美国侧测试订阅 · Mihomo</h3><div class="meta">learnLi / free-nodes · 上游自动发布</div></div><span class="pill">优先查看</span></div>
@@ -152,6 +169,38 @@ fetch("./data/checked-nodes.json", {cache:"no-store"})
     document.getElementById("check-status").textContent = "暂时无法读取检测数据：" + error.message;
     document.getElementById("check-status").classList.add("status-error");
     document.getElementById("node-list").textContent = "请稍后刷新页面，或查看 GitHub Actions 是否运行成功。";
+  });
+
+fetch("./data/fast-stable-nodes.json", {cache:"no-store"})
+  .then(response => {
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return response.json();
+  })
+  .then(data => {
+    const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+    document.getElementById("fast-count").textContent = data.working_nodes ?? nodes.length;
+    document.getElementById("fast-time").textContent =
+      "复测时间：" + (data.generated_at ? new Date(data.generated_at).toLocaleString() : "未知");
+    const list = document.getElementById("fast-node-list");
+    nodes.slice(0, 50).forEach(node => {
+      const row = document.createElement("div");
+      row.className = "node-row";
+      const name = document.createElement("span");
+      name.className = "node-name";
+      name.textContent = node.name || "未命名节点";
+      const delay = document.createElement("span");
+      delay.className = "latency";
+      delay.textContent = Number(node.delay).toLocaleString() + " ms";
+      row.append(name, delay);
+      list.append(row);
+    });
+    document.getElementById("fast-caption").textContent =
+      "共 " + nodes.length + " 个符合条件，当前显示 " + Math.min(nodes.length, 50) + " 个";
+    if (!nodes.length) list.textContent = "本轮没有节点达到高速稳定标准，普通可用节点列表不受影响。";
+  })
+  .catch(error => {
+    document.getElementById("fast-time").textContent = "暂时无法读取高速稳定数据：" + error.message;
+    document.getElementById("fast-time").classList.add("status-error");
   });
 </script>
 </body>
