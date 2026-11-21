@@ -215,13 +215,8 @@ def probe_download_endpoint():
 
 def build_clash_config(proxy_nodes):
     names = [node["name"] for node in proxy_nodes]
-    return {
-        "mixed-port": 7890,
-        "allow-lan": False,
-        "mode": "rule",
-        "log-level": "info",
-        "proxies": proxy_nodes,
-        "proxy-groups": [
+    if names:
+        groups = [
             {
                 "name": "自动选择",
                 "type": "url-test",
@@ -235,7 +230,22 @@ def build_clash_config(proxy_nodes):
                 "type": "select",
                 "proxies": ["自动选择", "DIRECT"] + names,
             },
-        ],
+        ]
+    else:
+        # Keep an empty high-speed subscription syntactically importable.
+        groups = [{
+            "name": "手动选择",
+            "type": "select",
+            "proxies": ["DIRECT"],
+        }]
+
+    return {
+        "mixed-port": 7890,
+        "allow-lan": False,
+        "mode": "rule",
+        "log-level": "info",
+        "proxies": proxy_nodes,
+        "proxy-groups": groups,
         "rules": ["MATCH,手动选择"],
     }
 
