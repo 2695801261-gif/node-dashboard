@@ -1,5 +1,7 @@
 import os
 import time
+import json
+from datetime import datetime, timezone
 import yaml
 import requests
 import subprocess
@@ -127,11 +129,12 @@ def main():
                 result = future.result()
                 if result:
                     node, delay = result
-                    passed.append(node)
+                    passed.append({"node": node, "delay": delay})
                     print("连接成功：", node["name"], delay, "ms")
 
+        passed.sort(key=lambda item: item["delay"])
         output = {
-            "proxies": passed,
+            "proxies": [item["node"] for item in passed],
         }
 
         with open(
@@ -145,6 +148,28 @@ def main():
                 allow_unicode=True,
                 sort_keys=False
             )
+
+        summary = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "total_nodes": len(nodes),
+            "working_nodes": len(passed),
+            "test_url": TEST_URL,
+            "nodes": [
+                {
+                    "name": item["node"]["name"],
+                    "type": item["node"].get("type", ""),
+                    "delay": item["delay"],
+                }
+                for item in passed
+            ],
+        }
+
+        with open(
+            "data/checked-nodes.json",
+            "w",
+            encoding="utf-8"
+        ) as file:
+            json.dump(summary, file, ensure_ascii=False, indent=2)
 
         print("检测结束")
         print("原始节点：", len(nodes))
