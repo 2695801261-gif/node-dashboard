@@ -18,6 +18,8 @@ API = "http://127.0.0.1:9090"
 TEST_URL = "https://www.gstatic.com/generate_204"
 TIMEOUT = 8000
 MAX_WORKERS = 8
+FAST_MAX_DELAY = 500
+STABILITY_ROUNDS = 3
 
 def fetch_nodes():
     nodes = []
@@ -133,6 +135,67 @@ def main():
                     print("连接成功：", node["name"], delay, "ms")
 
         passed.sort(key=lambda item: item["delay"])
+
+        # 独立筛选高速稳定节点：首次测速及后续复测均须成功且不超过阈值
+        fast_candidates = [
+            item for item in passed
+            if item["delay"] <= FAST_MAX_DELAY
+        ]
+        fast_stable = []
+
+        def confirm_fast_stable(item):
+            samples = [item["delay"]]
+            for _ in range(STABILITY_ROUNDS - 1):
+                result = test_node(item["node"])
+                if not result:
+                    return None
+                _, delay = result
+                if delay > FAST_MAX_DELAY:
+                    return None
+                samples.append(delay)
+            return {
+                "node": item["node"],
+                "delay": round(sum(samples) / len(samples)),
+                "samples": samples,
+            }
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futures = [pool.submit(confirm_fast_stable, item) for item in fast_candidates]
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                if result:
+                    fast_stable.append(result)
+
+        fast_stable.sort(key=lambda item: item["delay"])
+        with open("data/fast-stable-nodes.yaml", "w", encoding="utf-8") as file:
+            yaml.safe_dump(
+                {"proxies": [item["node"] for item in fast_stable]},
+                file, allow_unicode=True, sort_keys=False
+            )
+
+        fast_summary = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "criteria": {
+                "max_delay_ms_per_probe": FAST_MAX_DELAY,
+                "successful_probes_required": STABILITY_ROUNDS,
+            },
+            "working_nodes": len(fast_stable),
+            "nodes": [
+                {
+                    "name": item["node"]["name"],
+                    "type": item["node"].get("type", ""),
+                    "delay": item["delay"],
+                    "samples": item["samples"],
+                }
+                for item in fast_stable
+            ],
+        }
+        with open("data/fast-stable-nodes.json", "w", encoding="utf-8") as file:
+            json.dump(fast_summary, file, ensure_ascii=False, indent=2)
+
+        print("高速稳定候选：", len(fast_candidates))
+        print("高速稳定节点（连续三次成功且每次不超过 500 ms）：", len(fast_stable))
+
         output = {
             "proxies": [item["node"] for item in passed],
         }
