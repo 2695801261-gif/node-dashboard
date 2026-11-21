@@ -177,7 +177,7 @@ def test_download(node, index, binary):
         print("下载验证失败：", name, str(error)[:180])
         return None
     finally:
-        if process is not None:
+        if process is not None and process.poll() is None:
             process.terminate()
             try:
                 process.wait(timeout=5)
