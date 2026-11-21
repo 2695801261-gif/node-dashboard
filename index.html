@@ -60,7 +60,7 @@ footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
       <div class="stat"><strong>≤ 500 ms</strong><span>每轮测速上限</span></div>
     </div>
     <div class="meta" id="fast-time">正在读取高速稳定检测结果…</div>
-    <div class="desc">入选条件：同一轮检测中连续 3 次连接测试全部成功，且每次云端延迟均不超过 500 ms。按三次平均延迟排序。国家、地区及其他属性不参与筛选。</div>
+    <div class="desc">入选条件：云端延迟连续 3 次均不超过 500 ms；另须通过真实 512 KiB 下载测试，完整收到数据且下载速度至少 64 KiB/s。按三次平均延迟排序。该结果仍不保证你本地网络一定可用。</div>
     <div class="node-list" id="fast-node-list"></div>
     <div class="actions" style="margin-top:13px">
       <button class="btn primary" data-copy="https://2695801261-gif.github.io/node-dashboard/data/fast-stable-nodes.yaml">复制高速稳定订阅地址</button>
@@ -192,7 +192,9 @@ fetch("./data/fast-stable-nodes.json", {cache:"no-store"})
       name.textContent = node.name || "未命名节点";
       const delay = document.createElement("span");
       delay.className = "latency";
-      delay.textContent = Number(node.delay).toLocaleString() + " ms";
+      const speed = Number(node.download_kib_per_sec || 0);
+      delay.textContent = Number(node.delay).toLocaleString() + " ms" +
+        (speed > 0 ? " · " + speed.toLocaleString() + " KiB/s" : "");
       row.append(name, delay);
       list.append(row);
     });
