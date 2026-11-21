@@ -87,6 +87,8 @@ jobs:
           cp index.html site/index.html
           cp data/checked-nodes.yaml site/data/checked-nodes.yaml
           cp data/checked-nodes.json site/data/checked-nodes.json
+          cp data/fast-stable-nodes.yaml site/data/fast-stable-nodes.yaml
+          cp data/fast-stable-nodes.json site/data/fast-stable-nodes.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
