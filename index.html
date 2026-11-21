@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>节点小站 · 免费公开订阅</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121d30;--muted:#91a2bb;--line:#26354c;--text:#edf3ff;--accent:#73a7ff;--green:#48d6a0}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 0%,#1b3150 0,transparent 42%),var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:820px;margin:auto;padding:24px 16px 60px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 24px}
+.brand{font-weight:800;font-size:20px;letter-spacing:.2px}.pill{font-size:12px;border:1px solid #2d775f;color:#8ef0c4;border-radius:99px;padding:5px 10px}
+h1{font-size:30px;line-height:1.18;margin:0 0 10px}p{color:var(--muted);margin:0 0 18px}.hero{padding:22px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(135deg,#16243a,#101a2b);margin-bottom:18px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.tag{font-size:12px;color:#b9c9df;background:#1b2b43;padding:5px 9px;border-radius:99px}
+.section-title{font-size:17px;margin:24px 0 12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin:10px 0}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.card h3{margin:0 0 4px;font-size:16px}.meta{font-size:12px;color:var(--muted)}.desc{font-size:13px;color:#b2c0d4;margin:12px 0}
+.actions{display:flex;flex-wrap:wrap;gap:9px}.btn{appearance:none;border:1px solid #385071;background:#1b2c46;color:var(--text);padding:10px 13px;border-radius:12px;font-weight:650;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.btn.primary{background:#3978d8;border-color:#3978d8;color:white}.btn:active{transform:scale(.98)}
+.note{border:1px solid #5c4b2b;background:#241e13;color:#e8d5aa;border-radius:15px;padding:13px;font-size:12px;margin-top:18px}
+.steps{display:grid;gap:10px}.step{display:flex;gap:12px;align-items:flex-start;color:#c4d0e1;font-size:13px}.num{width:24px;height:24px;flex:none;border-radius:8px;background:#203653;color:#9fc3ff;display:grid;place-items:center;font-weight:800}
+footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
+@media(min-width:650px){.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cards .card{margin:0}.hero{padding:28px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><div class="brand">◈ 节点小站</div><span class="pill">公开来源 · 自动更新</span></div>
+  <section class="hero">
+    <h1>免费节点订阅<br>简单导入，自动更新</h1>
+    <p>整理公开发布的订阅源。美国相关来源优先展示，同时提供综合节点列表。</p>
+    <div class="tags"><span class="tag">Clash / Mihomo</span><span class="tag">手机适配</span><span class="tag">一键复制</span><span class="tag">上游定时更新</span></div>
+  </section>
+
+  <h2 class="section-title">🇺🇸 美国优先</h2>
+  <section class="card">
+    <div class="card-head"><div><h3>美国侧测试订阅 · Mihomo</h3><div class="meta">learnLi / free-nodes · 上游自动发布</div></div><span class="pill">优先查看</span></div>
+    <div class="desc">该列表标注为美国侧测试筛选，不代表所有出口 IP 都位于美国，也不代表通过任何平台的风控检测。</div>
+    <div class="actions">
+      <button class="btn primary" data-copy="https://github.com/learnLi/free-nodes/releases/latest/download/list.meta.us.yml">复制订阅地址</button>
+      <a class="btn" href="https://github.com/learnLi/free-nodes/releases/latest/download/list.meta.us.yml" target="_blank" rel="noopener">打开订阅</a>
+      <a class="btn" href="https://github.com/learnLi/free-nodes" target="_blank" rel="noopener">查看来源</a>
+    </div>
+  </section>
+
+  <h2 class="section-title">🌐 综合公开节点</h2>
+  <div class="cards">
+    <section class="card">
+      <div class="card-head"><div><h3>Free Nodes Radar</h3><div class="meta">多协议 · 每 6 小时更新</div></div></div>
+      <div class="desc">支持 Clash / Mihomo、V2Ray 等格式；含节点国家与稳定性信息。具体可用性因网络位置而异。</div>
+      <div class="actions">
+        <button class="btn primary" data-copy="https://radarhub.top/clash.yaml">复制 Clash 订阅</button>
+        <a class="btn" href="https://nodesradar.com/" target="_blank" rel="noopener">查看节点面板</a>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h3>Thordata 免费代理列表</h3><div class="meta">HTTP / SOCKS5 · 每日验证</div></div></div>
+      <div class="desc">适合需要 HTTP 或 SOCKS5 代理的场景；与 VLESS / VMess 等协议订阅不同。</div>
+      <div class="actions">
+        <button class="btn primary" data-copy="https://thordata.github.io/awesome-free-proxy-list/data/clash/all.yaml">复制 Clash 订阅</button>
+        <a class="btn" href="https://thordata.github.io/awesome-free-proxy-list/" target="_blank" rel="noopener">查看来源</a>
+      </div>
+    </section>
+  </div>
+
+  <h2 class="section-title">📲 导入方法</h2>
+  <section class="card steps">
+    <div class="step"><span class="num">1</span><span>点上面的「复制订阅地址」。</span></div>
+    <div class="step"><span class="num">2</span><span>打开 Clash Verge、Mihomo Party、FlClash 等客户端，进入「配置 / Profiles」。</span></div>
+    <div class="step"><span class="num">3</span><span>添加订阅并粘贴地址，更新配置后选择该配置。</span></div>
+    <div class="step"><span class="num">4</span><span>在客户端开启订阅自动更新；建议设置为每 6 小时或按客户端支持的频率更新。</span></div>
+  </section>
+
+  <div class="note"><b>安全提醒：</b>免费节点由第三方运营，运营者可能观察未加密流量。不要通过免费节点登录网银、邮箱或处理敏感资料；不要安装节点提供方要求的未知证书或软件。测速只代表测试时点的连通性，不代表 IP 信誉、匿名性或不会触发平台风控。</div>
+  <footer>本页面只索引公开来源，不运营代理服务器。订阅可用性、节点内容和更新频率由上游维护者决定。</footer>
+</main>
+<script>
+document.querySelectorAll("[data-copy]").forEach(btn=>{
+  btn.addEventListener("click",async()=>{
+    const value=btn.getAttribute("data-copy");
+    try{
+      await navigator.clipboard.writeText(value);
+      const old=btn.textContent;btn.textContent="已复制 ✓";setTimeout(()=>btn.textContent=old,1500);
+    }catch(e){
+      window.prompt("请手动复制订阅地址：",value);
+    }
+  });
+});
+</script>
+</body>
+</html>
