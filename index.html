@@ -45,7 +45,8 @@ footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
     <div class="meta" id="list-caption">按检测延迟从低到高显示，最多展示前 50 条</div>
     <div class="node-list" id="node-list"></div>
     <div class="actions" style="margin-top:13px">
-      <a class="btn primary" href="./data/checked-nodes.yaml" download>下载本轮可用节点 YAML</a>
+      <button class="btn primary" data-copy="https://2695801261-gif.github.io/node-dashboard/data/checked-nodes.yaml">复制普通节点订阅地址</button>
+      <a class="btn" href="./data/checked-nodes.yaml" download>下载 YAML 文件</a>
       <a class="btn" href="./data/checked-nodes.json" target="_blank" rel="noopener">查看检测数据 JSON</a>
     </div>
     <div class="desc">检测由 GitHub 云端执行，延迟是云端到测试地址的结果，不代表你当前网络的实际延迟或可用性。</div>
@@ -62,7 +63,8 @@ footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
     <div class="desc">入选条件：同一轮检测中连续 3 次连接测试全部成功，且每次云端延迟均不超过 500 ms。按三次平均延迟排序。国家、地区及其他属性不参与筛选。</div>
     <div class="node-list" id="fast-node-list"></div>
     <div class="actions" style="margin-top:13px">
-      <a class="btn primary" href="./data/fast-stable-nodes.yaml" download>下载高速稳定节点 YAML</a>
+      <button class="btn primary" data-copy="https://2695801261-gif.github.io/node-dashboard/data/fast-stable-nodes.yaml">复制高速稳定订阅地址</button>
+      <a class="btn" href="./data/fast-stable-nodes.yaml" download>下载 YAML 文件</a>
       <a class="btn" href="./data/fast-stable-nodes.json" target="_blank" rel="noopener">查看复测数据</a>
     </div>
     <div class="meta" id="fast-caption">最多展示前 50 条</div>
