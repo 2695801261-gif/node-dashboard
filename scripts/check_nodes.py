@@ -21,11 +21,24 @@ TIMEOUT = 8000
 MAX_WORKERS = 8
 FAST_MAX_DELAY = 500
 STABILITY_ROUNDS = 3
-DOWNLOAD_TEST_URL = "https://speed.cloudflare.com/__down?bytes=524288"
 DOWNLOAD_BYTES = 524288
 MIN_DOWNLOAD_KIB_PER_SEC = 64
 DOWNLOAD_TIMEOUT = 18
 DOWNLOAD_WORKERS = 8
+DOWNLOAD_TARGETS = [
+    {
+        "name": "Google Cloud Storage",
+        "url": "https://storage.googleapis.com/gcp-public-data-landsat/LC08/01/001/003/LC08_L1GT_001003_20140812_20170420_01_T2/LC08_L1GT_001003_20140812_20170420_01_T2_B3.TIF",
+        "expected_status": 206,
+        "headers": {"Range": "bytes=0-524287"},
+    },
+    {
+        "name": "Cloudflare Speed Test",
+        "url": "https://speed.cloudflare.com/__down?bytes=524288",
+        "expected_status": 200,
+        "headers": {},
+    },
+]
 
 def fetch_nodes():
     nodes = []
@@ -86,8 +99,8 @@ def test_node(node):
     return None
 
 
-def test_download(node, index, binary):
-    """Start an isolated Mihomo instance and verify real response-body transfer."""
+def test_download(node, index, binary, targets):
+    """Start an isolated Mihomo instance and verify a full response-body transfer."""
     mixed_port = 20000 + index * 2
     api_port = mixed_port + 1
     config_path = f"/tmp/mihomo-download-{index}.yaml"
@@ -109,6 +122,7 @@ def test_download(node, index, binary):
     }
 
     process = None
+    last_error = None
     try:
         with open(config_path, "w", encoding="utf-8") as file:
             yaml.safe_dump(config, file, allow_unicode=True, sort_keys=False)
@@ -136,45 +150,70 @@ def test_download(node, index, binary):
             return None
 
         proxy_url = f"http://127.0.0.1:{mixed_port}"
-        started = time.monotonic()
-        received = 0
-
-        with requests.get(
-            DOWNLOAD_TEST_URL,
-            proxies={"http": proxy_url, "https": proxy_url},
-            headers={
+        for target in targets:
+            headers = {
                 "Accept-Encoding": "identity",
                 "Cache-Control": "no-cache",
                 "User-Agent": "node-dashboard-download-check/1.0",
-            },
-            stream=True,
-            timeout=(8, DOWNLOAD_TIMEOUT),
-        ) as response:
-            if response.status_code != 200:
-                return None
-            expected = response.headers.get("Content-Length")
-            for chunk in response.iter_content(chunk_size=16384):
-                if chunk:
-                    received += len(chunk)
-                    if received > DOWNLOAD_BYTES:
-                        return None
+            }
+            headers.update(target.get("headers", {}))
+            started = time.monotonic()
+            received = 0
 
-        elapsed = max(time.monotonic() - started, 0.001)
-        if received != DOWNLOAD_BYTES:
-            return None
+            try:
+                with requests.get(
+                    target["url"],
+                    proxies={"http": proxy_url, "https": proxy_url},
+                    headers=headers,
+                    stream=True,
+                    timeout=(8, DOWNLOAD_TIMEOUT),
+                ) as response:
+                    if response.status_code != target["expected_status"]:
+                        last_error = (
+                            f'{target["name"]}: HTTP {response.status_code}, '
+                            f'expected {target["expected_status"]}'
+                        )
+                        continue
 
-        speed_kib = round((received / 1024) / elapsed, 1)
-        if speed_kib < MIN_DOWNLOAD_KIB_PER_SEC:
-            return None
+                    for chunk in response.iter_content(chunk_size=16384):
+                        if chunk:
+                            received += len(chunk)
+                            if received > DOWNLOAD_BYTES:
+                                last_error = f'{target["name"]}: received more than {DOWNLOAD_BYTES} bytes'
+                                break
 
-        return {
-            "download_kib_per_sec": speed_kib,
-            "download_bytes": received,
-            "download_seconds": round(elapsed, 2),
-        }
+                if received != DOWNLOAD_BYTES:
+                    last_error = (
+                        f'{target["name"]}: incomplete body '
+                        f'({received}/{DOWNLOAD_BYTES} bytes)'
+                    )
+                    continue
+
+                elapsed = max(time.monotonic() - started, 0.001)
+                speed_kib = round((received / 1024) / elapsed, 1)
+                if speed_kib < MIN_DOWNLOAD_KIB_PER_SEC:
+                    last_error = (
+                        f'{target["name"]}: too slow '
+                        f'({speed_kib} KiB/s)'
+                    )
+                    continue
+
+                return {
+                    "download_kib_per_sec": speed_kib,
+                    "download_bytes": received,
+                    "download_seconds": round(elapsed, 2),
+                    "download_source": target["name"],
+                }
+
+            except Exception as error:
+                last_error = f'{target["name"]}: {str(error)[:220]}'
+
+        if last_error:
+            print("下载验证失败：", name, last_error)
+        return None
 
     except Exception as error:
-        print("下载验证失败：", name, str(error)[:180])
+        print("下载验证失败：", name, str(error)[:240])
         return None
     finally:
         if process is not None and process.poll() is None:
@@ -190,27 +229,50 @@ def test_download(node, index, binary):
             pass
 
 
-def probe_download_endpoint():
-    """Confirm the independent download test endpoint itself is reachable."""
-    try:
+def probe_download_endpoints():
+    """Check which download targets are reachable directly from the runner."""
+    available = []
+    for target in DOWNLOAD_TARGETS:
+        headers = {
+            "Accept-Encoding": "identity",
+            "Cache-Control": "no-cache",
+            "User-Agent": "node-dashboard-download-check/1.0",
+        }
+        headers.update(target.get("headers", {}))
         received = 0
-        with requests.get(
-            DOWNLOAD_TEST_URL,
-            headers={"Accept-Encoding": "identity", "Cache-Control": "no-cache"},
-            stream=True,
-            timeout=(8, DOWNLOAD_TIMEOUT),
-        ) as response:
-            if response.status_code != 200:
-                return False
-            for chunk in response.iter_content(chunk_size=16384):
-                if chunk:
-                    received += len(chunk)
-                    if received > DOWNLOAD_BYTES:
-                        return False
-        return received == DOWNLOAD_BYTES
-    except requests.RequestException as error:
-        print("下载测试端点预检失败：", str(error)[:180])
-        return False
+        try:
+            with requests.get(
+                target["url"],
+                headers=headers,
+                stream=True,
+                timeout=(8, DOWNLOAD_TIMEOUT),
+            ) as response:
+                if response.status_code != target["expected_status"]:
+                    print(
+                        "下载端点预检失败：",
+                        target["name"],
+                        "HTTP",
+                        response.status_code,
+                    )
+                    continue
+                for chunk in response.iter_content(chunk_size=16384):
+                    if chunk:
+                        received += len(chunk)
+                        if received > DOWNLOAD_BYTES:
+                            break
+            if received == DOWNLOAD_BYTES:
+                available.append(target)
+                print("下载端点预检通过：", target["name"])
+            else:
+                print(
+                    "下载端点预检失败：",
+                    target["name"],
+                    "数据长度",
+                    received,
+                )
+        except requests.RequestException as error:
+            print("下载端点预检失败：", target["name"], str(error)[:200])
+    return available
 
 
 def build_clash_config(proxy_nodes):
@@ -313,14 +375,21 @@ def main():
         ]
         fast_stable = []
 
-        download_endpoint_ok = probe_download_endpoint()
-        print("下载测试端点预检：", "通过" if download_endpoint_ok else "失败")
+        available_download_targets = probe_download_endpoints()
+        print(
+            "可用下载测试目标：",
+            ", ".join(target["name"] for target in available_download_targets)
+            if available_download_targets else "无",
+        )
         download_passed = []
 
-        if download_endpoint_ok:
+        if available_download_targets:
             with concurrent.futures.ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS) as pool:
                 futures = {
-                    pool.submit(test_download, item["node"], index, binary): item
+                    pool.submit(
+                        test_download, item["node"], index, binary,
+                        available_download_targets
+                    ): item
                     for index, item in enumerate(fast_candidates)
                 }
                 for future in concurrent.futures.as_completed(futures):
@@ -338,7 +407,7 @@ def main():
                             "KiB/s",
                         )
         else:
-            print("跳过高速节点下载验证：测试端点预检未通过；高速分类本轮不发布未验证节点。")
+            print("跳过高速节点下载验证：所有测试端点预检均未通过；高速分类本轮不发布未验证节点。")
 
         def confirm_fast_stable(item):
             samples = [item["delay"]]
@@ -382,7 +451,14 @@ def main():
             "criteria": {
                 "max_delay_ms_per_probe": FAST_MAX_DELAY,
                 "successful_probes_required": STABILITY_ROUNDS,
-                "download_test_url": DOWNLOAD_TEST_URL,
+                "download_test_targets": [
+                    {
+                        "name": target["name"],
+                        "url": target["url"],
+                        "expected_status": target["expected_status"],
+                    }
+                    for target in DOWNLOAD_TARGETS
+                ],
                 "download_bytes_required": DOWNLOAD_BYTES,
                 "minimum_download_kib_per_sec": MIN_DOWNLOAD_KIB_PER_SEC,
             },
@@ -396,6 +472,7 @@ def main():
                     "download_kib_per_sec": item["download_kib_per_sec"],
                     "download_bytes": item["download_bytes"],
                     "download_seconds": item["download_seconds"],
+                    "download_source": item["download_source"],
                 }
                 for item in fast_stable
             ],
