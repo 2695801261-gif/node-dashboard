@@ -18,6 +18,9 @@ h1{font-size:30px;line-height:1.18;margin:0 0 10px}p{color:var(--muted);margin:0
 .note{border:1px solid #5c4b2b;background:#241e13;color:#e8d5aa;border-radius:15px;padding:13px;font-size:12px;margin-top:18px}
 .steps{display:grid;gap:10px}.step{display:flex;gap:12px;align-items:flex-start;color:#c4d0e1;font-size:13px}.num{width:24px;height:24px;flex:none;border-radius:8px;background:#203653;color:#9fc3ff;display:grid;place-items:center;font-weight:800}
 footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}.stat{background:#0d1728;border:1px solid var(--line);border-radius:14px;padding:12px}.stat strong{display:block;font-size:25px;color:var(--green);line-height:1.25}.stat span{font-size:12px;color:var(--muted)}
+.search{width:100%;background:#0d1728;border:1px solid #385071;color:var(--text);padding:11px 12px;border-radius:11px;font-size:14px;margin:10px 0}
+.node-list{display:grid;gap:7px;margin-top:10px}.node-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 11px;background:#0d1728;border:1px solid #1f3048;border-radius:10px;font-size:13px}.node-name{min-width:0;overflow-wrap:anywhere;color:#dce7f8}.latency{white-space:nowrap;color:#8ef0c4;font-variant-numeric:tabular-nums}.status-error{color:#ffb4a8}
 @media(min-width:650px){.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cards .card{margin:0}.hero{padding:28px}}
 </style>
 </head>
@@ -28,6 +31,24 @@ footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
     <h1>免费节点订阅<br>简单导入，自动更新</h1>
     <p>整理公开发布的订阅源。美国相关来源优先展示，同时提供综合节点列表。</p>
     <div class="tags"><span class="tag">Clash / Mihomo</span><span class="tag">手机适配</span><span class="tag">一键复制</span><span class="tag">上游定时更新</span></div>
+  </section>
+
+  <h2 class="section-title">📊 最近一次自动检测</h2>
+  <section class="card" id="check-panel">
+    <div class="meta" id="check-status">正在读取检测结果…</div>
+    <div class="stats">
+      <div class="stat"><strong id="working-count">—</strong><span>连通节点</span></div>
+      <div class="stat"><strong id="total-count">—</strong><span>获取节点</span></div>
+    </div>
+    <div class="meta" id="check-time">检测时间：等待数据</div>
+    <input class="search" id="node-search" type="search" placeholder="搜索节点名称或协议…" aria-label="搜索节点">
+    <div class="meta" id="list-caption">按检测延迟从低到高显示，最多展示前 50 条</div>
+    <div class="node-list" id="node-list"></div>
+    <div class="actions" style="margin-top:13px">
+      <a class="btn primary" href="./data/checked-nodes.yaml" download>下载本轮可用节点 YAML</a>
+      <a class="btn" href="./data/checked-nodes.json" target="_blank" rel="noopener">查看检测数据 JSON</a>
+    </div>
+    <div class="desc">检测由 GitHub 云端执行，延迟是云端到测试地址的结果，不代表你当前网络的实际延迟或可用性。</div>
   </section>
 
   <h2 class="section-title">🇺🇸 美国优先</h2>
@@ -63,7 +84,7 @@ footer{margin-top:28px;color:#71839e;font-size:11px;text-align:center}
 
   <h2 class="section-title">📲 导入方法</h2>
   <section class="card steps">
-    <div class="step"><span class="num">1</span><span>点上面的「复制订阅地址」。</span></div>
+    <div class="step"><span class="num">1</span><span>点上面的「下载本轮可用节点 YAML」，或复制上方订阅地址。</span></div>
     <div class="step"><span class="num">2</span><span>打开 Clash Verge、Mihomo Party、FlClash 等客户端，进入「配置 / Profiles」。</span></div>
     <div class="step"><span class="num">3</span><span>添加订阅并粘贴地址，更新配置后选择该配置。</span></div>
     <div class="step"><span class="num">4</span><span>在客户端开启订阅自动更新；建议设置为每 6 小时或按客户端支持的频率更新。</span></div>
@@ -84,6 +105,54 @@ document.querySelectorAll("[data-copy]").forEach(btn=>{
     }
   });
 });
+
+const nodeList = document.getElementById("node-list");
+const searchBox = document.getElementById("node-search");
+let checkedNodes = [];
+
+function renderNodes() {
+  const query = searchBox.value.trim().toLowerCase();
+  const filtered = checkedNodes.filter(node =>
+    String(node.name || "").toLowerCase().includes(query) ||
+    String(node.type || "").toLowerCase().includes(query)
+  );
+  nodeList.replaceChildren();
+  filtered.slice(0, 50).forEach(node => {
+    const row = document.createElement("div");
+    row.className = "node-row";
+    const name = document.createElement("span");
+    name.className = "node-name";
+    name.textContent = node.name || "未命名节点";
+    const delay = document.createElement("span");
+    delay.className = "latency";
+    delay.textContent = Number(node.delay).toLocaleString() + " ms";
+    row.append(name, delay);
+    nodeList.append(row);
+  });
+  document.getElementById("list-caption").textContent =
+    "匹配 " + filtered.length + " 个节点，当前显示 " + Math.min(filtered.length, 50) + " 个（按云端检测延迟排序）";
+}
+searchBox.addEventListener("input", renderNodes);
+
+fetch("./data/checked-nodes.json", {cache:"no-store"})
+  .then(response => {
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return response.json();
+  })
+  .then(data => {
+    checkedNodes = Array.isArray(data.nodes) ? data.nodes : [];
+    document.getElementById("working-count").textContent = data.working_nodes ?? checkedNodes.length;
+    document.getElementById("total-count").textContent = data.total_nodes ?? "—";
+    document.getElementById("check-status").textContent = "检测结果已更新";
+    document.getElementById("check-time").textContent =
+      "检测时间：" + (data.generated_at ? new Date(data.generated_at).toLocaleString() : "未知");
+    renderNodes();
+  })
+  .catch(error => {
+    document.getElementById("check-status").textContent = "暂时无法读取检测数据：" + error.message;
+    document.getElementById("check-status").classList.add("status-error");
+    document.getElementById("node-list").textContent = "请稍后刷新页面，或查看 GitHub Actions 是否运行成功。";
+  });
 </script>
 </body>
 </html>
