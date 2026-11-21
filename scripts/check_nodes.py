@@ -27,6 +27,12 @@ DOWNLOAD_TIMEOUT = 18
 DOWNLOAD_WORKERS = 8
 DOWNLOAD_TARGETS = [
     {
+        "name": "Google Maven",
+        "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-basement/18.5.0/play-services-basement-18.5.0-javadoc.jar",
+        "expected_status": 206,
+        "headers": {"Range": "bytes=0-524287"},
+    },
+    {
         "name": "Google Cloud Storage",
         "url": "https://storage.googleapis.com/gcp-public-data-landsat/LC08/01/001/003/LC08_L1GT_001003_20140812_20170420_01_T2/LC08_L1GT_001003_20140812_20170420_01_T2_B3.TIF",
         "expected_status": 206,
@@ -122,7 +128,7 @@ def test_download(node, index, binary, targets):
     }
 
     process = None
-    last_error = None
+    errors = []
     try:
         with open(config_path, "w", encoding="utf-8") as file:
             yaml.safe_dump(config, file, allow_unicode=True, sort_keys=False)
@@ -169,7 +175,7 @@ def test_download(node, index, binary, targets):
                     timeout=(8, DOWNLOAD_TIMEOUT),
                 ) as response:
                     if response.status_code != target["expected_status"]:
-                        last_error = (
+                        errors.append(
                             f'{target["name"]}: HTTP {response.status_code}, '
                             f'expected {target["expected_status"]}'
                         )
@@ -179,11 +185,11 @@ def test_download(node, index, binary, targets):
                         if chunk:
                             received += len(chunk)
                             if received > DOWNLOAD_BYTES:
-                                last_error = f'{target["name"]}: received more than {DOWNLOAD_BYTES} bytes'
+                                errors.append(f'{target["name"]}: received more than {DOWNLOAD_BYTES} bytes')
                                 break
 
                 if received != DOWNLOAD_BYTES:
-                    last_error = (
+                    errors.append(
                         f'{target["name"]}: incomplete body '
                         f'({received}/{DOWNLOAD_BYTES} bytes)'
                     )
@@ -192,7 +198,7 @@ def test_download(node, index, binary, targets):
                 elapsed = max(time.monotonic() - started, 0.001)
                 speed_kib = round((received / 1024) / elapsed, 1)
                 if speed_kib < MIN_DOWNLOAD_KIB_PER_SEC:
-                    last_error = (
+                    errors.append(
                         f'{target["name"]}: too slow '
                         f'({speed_kib} KiB/s)'
                     )
@@ -206,10 +212,10 @@ def test_download(node, index, binary, targets):
                 }
 
             except Exception as error:
-                last_error = f'{target["name"]}: {str(error)[:220]}'
+                errors.append(f'{target["name"]}: {str(error)[:180]}')
 
-        if last_error:
-            print("下载验证失败：", name, last_error)
+        if errors:
+            print("下载验证失败：", name, " | ".join(errors))
         return None
 
     except Exception as error:
