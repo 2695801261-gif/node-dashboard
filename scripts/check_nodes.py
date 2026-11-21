@@ -426,6 +426,7 @@ def main():
                 "download_kib_per_sec": item["download_kib_per_sec"],
                 "download_bytes": item["download_bytes"],
                 "download_seconds": item["download_seconds"],
+                "download_source": item["download_source"],
             }
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
